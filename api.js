@@ -1,5 +1,11 @@
 // ---------- 1. Constants and elements ----------
 const API_URL = "https://jsonplaceholder.typicode.com/posts";
+const MAX_TITLE_LENGTH = 100;
+
+const form = document.querySelector("#note-form");
+const titleInput = document.querySelector("#title-input");
+const bodyInput = document.querySelector("#body-input");
+const submitBtn = document.querySelector("#submit-btn");
 
 const loadBtn = document.querySelector("#load-btn");
 const statusText = document.querySelector("#status");
@@ -24,7 +30,25 @@ async function getNotes() {
   return result.data;
 }
 
+async function createNote(title, text) {
+  return request(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: title, body: text, userId: 1 }),
+  });
+}
+
 // ---------- 4. Showing things on the page ----------
+function getTitleError(title) {
+  if (title === "") {
+    return "Please enter a title.";
+  }
+  if (title.length > MAX_TITLE_LENGTH) {
+    return `Title must be ${MAX_TITLE_LENGTH} characters or fewer.`;
+  }
+  return ""; // no error
+}
+
 function setStatus(message, type) {
   statusText.textContent = message;
   statusText.className = type; // "loading", "success", "error" or ""
@@ -63,6 +87,13 @@ function renderNotes(notes) {
   });
 }
 
+function removeEmptyMessage() {
+  const empty = list.querySelector(".empty-message");
+  if (empty) {
+    empty.remove();
+  }
+}
+
 // ---------- 5. Load notes (GET) ----------
 async function loadNotes() {
   setStatus("Loading notes...", "loading");
@@ -86,6 +117,47 @@ async function loadNotes() {
   }
 }
 
+// ---------- Create a note (POST) ----------
+async function handleSubmit(event) {
+  event.preventDefault(); // stop the page reloading
+
+  const title = titleInput.value.trim();
+  const text = bodyInput.value.trim();
+
+  // 1. Validate first
+  const validationError = getTitleError(title);
+  if (validationError !== "") {
+    setStatus(validationError, "error");
+    titleInput.focus();
+    return; // stop here: no request is sent
+  }
+
+  // 2. Loading state
+  setStatus("Creating note...", "loading");
+  submitBtn.disabled = true;
+
+  // 3. Send the request
+  try {
+    const result = await createNote(title, text);
+
+    removeEmptyMessage();
+    list.prepend(renderNote(result.data)); // top of the list
+
+    setStatus(
+      `Note created (status ${result.status}, id ${result.data.id}).`,
+      "success"
+    );
+
+    form.reset(); // clear the form
+    titleInput.focus();
+  } catch (error) {
+    setStatus("Could not create the note. Please try again.", "error");
+    console.error(error);
+  } finally {
+    submitBtn.disabled = false; // success or failure
+  }
+}
+
 // ---------- 6. Listeners ----------
 loadBtn.addEventListener("click", loadNotes);
-
+form.addEventListener("submit", handleSubmit);

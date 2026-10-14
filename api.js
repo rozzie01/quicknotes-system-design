@@ -20,7 +20,8 @@ async function request(url, options = {}) {
     throw new Error(`Request failed with status ${response.status}`);
   }
 
-  const data = await response.json();
+  // 204 No Content has no body, so there is nothing to parse
+  const data = response.status === 204 ? null : await response.json();
   return { data: data, status: response.status };
 }
 
@@ -36,6 +37,10 @@ async function createNote(title, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title: title, body: text, userId: 1 }),
   });
+}
+
+async function deleteNote(id) {
+  return request(`${API_URL}/${id}`, { method: "DELETE" });
 }
 
 // ---------- 4. Showing things on the page ----------
@@ -54,9 +59,12 @@ function setStatus(message, type) {
   statusText.className = type; // "loading", "success", "error" or ""
 }
 
-function renderNote(note) {
+function renderNote(note, isLocal = false) {
   const li = document.createElement("li");
   li.classList.add("note");
+
+  const content = document.createElement("div");
+  content.classList.add("note-content");
 
   const title = document.createElement("h3");
   title.classList.add("note-title");
@@ -66,19 +74,31 @@ function renderNote(note) {
   body.classList.add("note-body");
   body.textContent = note.body;
 
-  li.appendChild(title);
-  li.appendChild(body);
+  const del = document.createElement("button");
+  del.type = "button";
+  del.classList.add("delete-btn");
+  del.textContent = "Delete";
+  del.addEventListener("click", () => handleDelete(note, isLocal, li, del));
+
+  content.appendChild(title);
+  content.appendChild(body);
+  li.appendChild(content);
+  li.appendChild(del);
   return li;
+}
+
+function showEmptyMessage() {
+  const empty = document.createElement("li");
+  empty.classList.add("empty-message");
+  empty.textContent = "No notes to show yet.";
+  list.appendChild(empty);
 }
 
 function renderNotes(notes) {
   list.replaceChildren();
 
   if (notes.length === 0) {
-    const empty = document.createElement("li");
-    empty.classList.add("empty-message");
-    empty.textContent = "No notes to show yet.";
-    list.appendChild(empty);
+    showEmptyMessage();
     return;
   }
 
@@ -117,7 +137,7 @@ async function loadNotes() {
   }
 }
 
-// ---------- Create a note (POST) ----------
+// ---------- 6. Create a note (POST) ----------
 async function handleSubmit(event) {
   event.preventDefault(); // stop the page reloading
 
@@ -141,7 +161,7 @@ async function handleSubmit(event) {
     const result = await createNote(title, text);
 
     removeEmptyMessage();
-    list.prepend(renderNote(result.data)); // top of the list
+    list.prepend(renderNote(result.data, true)); // true = created locally
 
     setStatus(
       `Note created (status ${result.status}, id ${result.data.id}).`,
@@ -158,6 +178,44 @@ async function handleSubmit(event) {
   }
 }
 
-// ---------- 6. Listeners ----------
+// ---------- 7. Delete a note (DELETE) ----------
+// JSONPlaceholder is a practice API: it ACCEPTS our requests but never really
+// stores anything. A note we create comes back with the fake id 101 and does
+// not exist on the server, so asking the server to delete it makes no sense.
+// Our approach:
+//   - Notes loaded from the server (isLocal = false): send a real
+//     DELETE /posts/{id} request, then remove the card.
+//   - Notes created in this session (isLocal = true): remove the card without
+//     a request, and say so in the status message.
+// Because the server never really deletes anything, a deleted note will come
+// back the next time "Load notes" is clicked. That is expected.
+async function handleDelete(note, isLocal, li, button) {
+  button.disabled = true;
+
+  try {
+    if (isLocal) {
+      li.remove();
+      setStatus(
+        "Note removed. It was only created on this page, so no request was sent.",
+        "success"
+      );
+    } else {
+      setStatus("Deleting note...", "loading");
+      const result = await deleteNote(note.id);
+      li.remove();
+      setStatus(`Note ${note.id} deleted (status ${result.status}).`, "success");
+    }
+
+    if (list.children.length === 0) {
+      showEmptyMessage();
+    }
+  } catch (error) {
+    setStatus("Could not delete the note. Please try again.", "error");
+    console.error(error);
+    button.disabled = false; // let the user try again
+  }
+}
+
+// ---------- 8. Listeners ----------
 loadBtn.addEventListener("click", loadNotes);
 form.addEventListener("submit", handleSubmit);

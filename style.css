@@ -117,6 +117,10 @@ form button {
 }
 
 .note {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   background-color: #fffbe6;
   border: 1px solid #e5e5e5;
   border-left: 5px solid #0ba184;
@@ -139,4 +143,24 @@ form button {
   color: #666;
   font-style: italic;
   padding: 8px 0;
+}
+
+.note-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-title,
+.note-body {
+  overflow-wrap: break-word;
+}
+
+.delete-btn {
+  background-color: #8e0000;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.delete-btn:hover {
+  background-color: #6b0000;
 }
